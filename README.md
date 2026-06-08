@@ -30,6 +30,51 @@ O projeto simula um ciclo completo de chamada VoIP sem necessidade de softphone 
 └── sip_client.py        # Cliente SIP Python que registra o ramal e atende chamadas
 ```
 
+## Arquivos de Configuração do Asterisk
+
+O Asterisk não funciona sem seus arquivos `.conf` — eles substituem o que seria feito via interface gráfica em outros sistemas e definem todo o comportamento do servidor. Neste projeto, cada arquivo tem uma responsabilidade clara:
+
+### `pjsip.conf`
+Define **quem pode se conectar** ao Asterisk. Sem ele, o servidor não conhece nenhum ramal e rejeita qualquer tentativa de registro ou chamada.
+
+Configura três objetos interdependentes para o ramal 1001:
+- **transport**: protocolo e porta de escuta (UDP/5060)
+- **endpoint**: contexto do dialplan, codecs permitidos (ulaw) e referências para auth e AOR
+- **auth**: credenciais que o cliente SIP deve apresentar no REGISTER
+- **AOR** *(Address of Record)*: onde armazenar o contato dinâmico após o registro — é o "endereço postal" do ramal
+
+Se este arquivo estiver ausente ou mal configurado, o `sip_client.py` não consegue registrar o ramal e o Asterisk retorna erro `403 Forbidden` ou simplesmente ignora o REGISTER.
+
+### `extensions.conf`
+Define **o que acontece com a chamada** depois que ela é atendida — o chamado *dialplan*. Sem ele, o Asterisk atende a chamada e não sabe o que fazer, encerrando imediatamente.
+
+```
+[internal]
+exten => 1001,1,Answer()   ; atende a chamada (completa o handshake SIP)
+ same => n,Wait(3)         ; mantém o canal ativo por 3 segundos
+ same => n,Hangup()        ; encerra a chamada e libera o canal
+```
+
+O contexto `internal` é o mesmo referenciado no `pjsip.conf` (campo `context`) e no `ami.py` (campo `Context` do Originate) — os três precisam estar alinhados para a chamada funcionar.
+
+### `manager.conf`
+Habilita e configura a **AMI (Asterisk Manager Interface)** — a interface TCP que o `ami.py` usa para enviar comandos ao Asterisk em tempo real. Por padrão a AMI vem desabilitada; sem este arquivo, a conexão na porta 5038 é recusada.
+
+Define o usuário `python` com permissão total de leitura e escrita, o que permite executar ações como `Originate` (iniciar chamadas), `Hangup` (derrubar chamadas) e monitorar eventos do servidor.
+
+### Por que esses arquivos ficam fora do container?
+
+No `docker-compose.yml` os três arquivos são montados como volumes:
+
+```yaml
+volumes:
+  - ./pjsip.conf:/etc/asterisk/pjsip.conf
+  - ./extensions.conf:/etc/asterisk/extensions.conf
+  - ./manager.conf:/etc/asterisk/manager.conf
+```
+
+Isso mantém a configuração **versionada junto ao código** do projeto, separada da imagem Docker. Qualquer alteração no dialplan ou nos ramais é feita nos arquivos locais e aplicada com um simples `docker compose restart`, sem precisar reconstruir a imagem.
+
 ## Como Executar
 
 ### Pré-requisitos
