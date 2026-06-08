@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  asterisk:
+    image: andrius/asterisk
+    container_name: asterisk
+
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "5038:5038"
+
+    volumes:
+      - ./manager.conf:/etc/asterisk/manager.conf
+      - ./pjsip.conf:/etc/asterisk/pjsip.conf
+      - ./extensions.conf:/etc/asterisk/extensions.conf
