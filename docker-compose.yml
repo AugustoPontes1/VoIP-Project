@@ -4,6 +4,9 @@ services:
   asterisk:
     image: andrius/asterisk
     container_name: asterisk
+    restart: unless-stopped
+    healthcheck:
+      disable: true
 
     ports:
       - "5060:5060/udp"
@@ -14,3 +17,7 @@ services:
       - ./manager.conf:/etc/asterisk/manager.conf
       - ./pjsip.conf:/etc/asterisk/pjsip.conf
       - ./extensions.conf:/etc/asterisk/extensions.conf
+      - cdr-csv:/var/log/asterisk/cdr-csv
+
+volumes:
+  cdr-csv:
